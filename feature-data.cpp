@@ -105,6 +105,14 @@ int main(int argc, char *argv[]) {
         return ss.str();
     };
 
+    size_t totalKeypoints = 0;
+    for (auto&& image : images) {
+        const colmap::image_t imageId = image.ImageId();
+        const size_t numKeypoints = database.NumKeypointsForImage(imageId);
+        totalKeypoints += numKeypoints;
+    }
+    std::cout << "total keypoints = " << totalKeypoints << "\n";
+
     std::ofstream csv(featureLabelsCSV);
     if (!csv.is_open()) {
         std::cerr << "Unable to open '" << featureLabelsCSV << "' for writing!\n";
@@ -114,7 +122,12 @@ int main(int argc, char *argv[]) {
     csv << "N,IMGNAME,IMGID,I,KX,KY,A11,A12,A21,A22,MATCHES,INLIERS,HASPT3D,DESC\n";
     
     size_t n = 0;
+    size_t featuresWithMatches = 0;
+    size_t featuresWithInlierMatches = 0;
+    size_t featuresWith3DPoints = 0;
     for (auto&& image : images) {
+        const double progress = 100.0 * double(n)/totalKeypoints;
+        std::cout << "\r" << progress << "% keypoints output" << std::flush;
         const colmap::image_t imageId = image.ImageId();
         const std::string name = image.Name();
         const colmap::FeatureKeypoints keypoints = database.ReadKeypoints(imageId);
@@ -127,6 +140,9 @@ int main(int argc, char *argv[]) {
             const size_t matches = matchCounts[k];
             const size_t inlierMatches = inlierMatchCounts[k];
             const bool hasPoint3D = keypointsWith3DPoints.find(k) != keypointsWith3DPoints.end();
+            if (matches > 0) featuresWithMatches++;
+            if (inlierMatches > 0) featuresWithInlierMatches++;
+            if (hasPoint3D) featuresWith3DPoints++;
             csv << n << "," << name << "," << imageId << "," << i << ","
                 << std::fixed << std::setprecision(2)
                 << kp.x << "," << kp.y << ","
@@ -141,6 +157,11 @@ int main(int argc, char *argv[]) {
     }
 
     csv.close();
+
+    std::cout << "total features ..............." << totalKeypoints << "\n"
+              << "features w matches............" << featuresWithMatches << "\n"
+              << "features w inliear matches...." << featuresWithInlierMatches << "\n"
+              << "features w 3D Points.........." << featuresWith3DPoints << "\n";
     
     return 0;
 }
